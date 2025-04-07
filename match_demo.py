@@ -2,8 +2,10 @@ import streamlit as st
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+# ----------------------------
+# AI Match Scoring Functions
+# ----------------------------
 
-# --- Matching logic ---
 def jaccard_similarity(set1, set2):
     set1, set2 = set(set1), set(set2)
     if not set1 or not set2:
@@ -37,7 +39,7 @@ def compute_match_score(buyer, supplier):
     if sect_score > 0:
         explanation.append("You're in compatible sectors.")
 
-    # Geographic relevance
+    # Geography match
     if supplier['country'] in buyer['targets']:
         score += weights['geo']
         explanation.append(f"They are in your target market: {supplier['country']}.")
@@ -48,7 +50,7 @@ def compute_match_score(buyer, supplier):
     if cert_score > 0:
         explanation.append("You share similar certifications.")
 
-    # Size match
+    # Company size
     if buyer['size'] == supplier['size']:
         score += weights['size']
         explanation.append("You're similar in size.")
@@ -58,48 +60,61 @@ def compute_match_score(buyer, supplier):
         score += weights['export']
         explanation.append("They are export-ready.")
 
-    # Partnership type
+    # Partnership types
     partner_score = jaccard_similarity(buyer['partner_types'], supplier['partner_types'])
     score += partner_score * weights['partnership']
     if partner_score > 0:
-        explanation.append("They're open to the same partnership type.")
+        explanation.append("You're open to the same partnership type.")
 
-    # Assume both are active
+    # Activity level (dummy assumption)
     score += weights['activity'] * 0.8
     explanation.append("They are recently active.")
 
     return round(score, 2), explanation
 
+# ----------------------------
+# Streamlit App UI
+# ----------------------------
 
-# --- Streamlit UI ---
-st.title("🤝 B2B Matchmaking Demo")
+st.set_page_config(page_title="B2B Matchmaking Platform", layout="wide")
+st.title("🤝 AI-Powered B2B Matchmaking Platform")
 
-st.subheader("Buyer Profile")
-buyer = {
-    "needs": st.multiselect("Products/Services Needed", ["packaging", "IT services", "logistics", "labeling"]),
-    "sectors": st.multiselect("Sectors", ["Agriculture", "Textiles", "ICT", "Manufacturing"]),
-    "targets": st.multiselect("Target Markets", ["Germany", "France", "USA", "UK"]),
-    "certs": st.multiselect("Certifications", ["ISO 9001", "GOTS", "CE"]),
-    "size": st.selectbox("Company Size", ["micro", "small", "medium", "large"]),
-    "needs_exporter": st.checkbox("Needs Exporter?", value=True),
-    "partner_types": st.multiselect("Preferred Partnership Types", ["buyer-supplier", "JV", "reseller"]),
-    "country": "Kosovo"
-}
+col1, col2 = st.columns(2)
 
-st.subheader("Supplier Profile")
-supplier = {
-    "offers": st.multiselect("Products/Services Offered", ["packaging", "labeling", "IT services", "logistics"]),
-    "sectors": st.multiselect("Sectors (Supplier)", ["Agriculture", "Textiles", "ICT", "Manufacturing"], key="supplier_sectors"),
-    "certs": st.multiselect("Certifications (Supplier)", ["ISO 9001", "GOTS", "CE"], key="supplier_certs"),
-    "size": st.selectbox("Company Size (Supplier)", ["micro", "small", "medium", "large"], key="supplier_size"),
-    "export_ready": st.checkbox("Export Ready?", value=True),
-    "partner_types": st.multiselect("Partner Types", ["buyer-supplier", "JV", "reseller"], key="supplier_partner_types"),
-    "country": st.selectbox("Supplier Country", ["Germany", "France", "USA", "UK"])
-}
+with col1:
+    st.subheader("🔷 Buyer Profile")
 
-if st.button("🔍 Match"):
+    buyer = {
+        "needs": st.multiselect("What do you need?", ["packaging", "IT services", "logistics", "labeling", "consulting"]),
+        "sectors": st.multiselect("Your sectors", ["Agriculture", "Textiles", "ICT", "Manufacturing", "Retail"]),
+        "targets": st.multiselect("Target countries", ["Germany", "France", "USA", "UK", "Netherlands"]),
+        "certs": st.multiselect("Certifications", ["ISO 9001", "GOTS", "CE", "Fair Trade", "Organic"]),
+        "size": st.selectbox("Company size", ["micro", "small", "medium", "large"]),
+        "needs_exporter": st.checkbox("Looking for exporters?", value=True),
+        "partner_types": st.multiselect("Preferred partnership types", ["buyer-supplier", "JV", "reseller", "franchise"]),
+        "country": "Kosovo"
+    }
+
+with col2:
+    st.subheader("🟢 Supplier Profile")
+
+    supplier = {
+        "offers": st.multiselect("What do you offer?", ["packaging", "labeling", "IT services", "logistics", "consulting"]),
+        "sectors": st.multiselect("Your sectors", ["Agriculture", "Textiles", "ICT", "Manufacturing", "Retail"], key="supplier_sectors"),
+        "certs": st.multiselect("Certifications", ["ISO 9001", "GOTS", "CE", "Fair Trade", "Organic"], key="supplier_certs"),
+        "size": st.selectbox("Company size", ["micro", "small", "medium", "large"], key="supplier_size"),
+        "export_ready": st.checkbox("Are you export-ready?", value=True),
+        "partner_types": st.multiselect("Available for partnerships", ["buyer-supplier", "JV", "reseller", "franchise"], key="supplier_partner_types"),
+        "country": st.selectbox("Country of operation", ["Germany", "France", "USA", "UK", "Netherlands"])
+    }
+
+st.markdown("---")
+
+if st.button("🔍 Match Now"):
     score, explanation = compute_match_score(buyer, supplier)
-    st.success(f"Match Score: {score}%")
-    st.write("### Why this match?")
+    st.success(f"Match Score: **{score}%**")
+
+    st.markdown("### 🤔 Why this match?")
     for reason in explanation:
         st.markdown(f"✅ {reason}")
+
