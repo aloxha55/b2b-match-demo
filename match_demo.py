@@ -1,6 +1,12 @@
 import streamlit as st
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+from typing import List
+import uuid
+
+# In-memory company store (replace with database later)
+if "companies" not in st.session_state:
+    st.session_state.companies = []
 
 # ----------------------------
 # AI Match Scoring Functions
@@ -27,94 +33,124 @@ def compute_match_score(buyer, supplier):
         'activity': 10
     }
 
-    # Product matching
     prod_score = jaccard_similarity(buyer['needs'], supplier['offers'])
     score += prod_score * weights['product']
     if prod_score > 0:
         explanation.append("They offer what you need.")
 
-    # Sector matching
     sect_score = jaccard_similarity(buyer['sectors'], supplier['sectors'])
     score += sect_score * weights['sector']
     if sect_score > 0:
         explanation.append("You're in compatible sectors.")
 
-    # Geography match
     if supplier['country'] in buyer['targets']:
         score += weights['geo']
         explanation.append(f"They are in your target market: {supplier['country']}.")
 
-    # Certifications
     cert_score = jaccard_similarity(buyer['certs'], supplier['certs'])
     score += cert_score * weights['certs']
     if cert_score > 0:
         explanation.append("You share similar certifications.")
 
-    # Company size
     if buyer['size'] == supplier['size']:
         score += weights['size']
         explanation.append("You're similar in size.")
 
-    # Export readiness
     if buyer['needs_exporter'] and supplier['export_ready']:
         score += weights['export']
         explanation.append("They are export-ready.")
 
-    # Partnership types
     partner_score = jaccard_similarity(buyer['partner_types'], supplier['partner_types'])
     score += partner_score * weights['partnership']
     if partner_score > 0:
-        explanation.append("You're open to the same partnership type.")
+        explanation.append("They're open to the same partnership type.")
 
-    # Activity level (dummy assumption)
     score += weights['activity'] * 0.8
     explanation.append("They are recently active.")
 
     return round(score, 2), explanation
 
 # ----------------------------
-# Streamlit App UI
+# Page Navigation
 # ----------------------------
 
-st.set_page_config(page_title="B2B Matchmaking Platform", layout="wide")
-st.title("🤝 AI-Powered B2B Matchmaking Platform")
+st.set_page_config(page_title="B2B Matchmaking", layout="wide")
+pages = ["Register Company", "Find Matches"]
+page = st.sidebar.radio("📂 Navigate", pages)
 
-col1, col2 = st.columns(2)
+# ----------------------------
+# PAGE 1: Company Registration
+# ----------------------------
+if page == "Register Company":
+    st.title("🏢 Company Registration")
+    with st.form("company_form"):
+        name = st.text_input("Company Name")
+        role = st.radio("Acting as", ["Buyer", "Supplier"])
+        country = st.selectbox("Country", ["Kosovo", "Germany", "France", "USA", "UK", "Netherlands"])
+        size = st.selectbox("Company Size", ["micro", "small", "medium", "large"])
+        sectors = st.multiselect("Sectors", ["Agriculture", "Textiles", "ICT", "Manufacturing", "Retail"])
 
-with col1:
-    st.subheader("🔷 Buyer Profile")
+        offers = st.multiselect("Products/Services Offered", ["packaging", "labeling", "IT services", "logistics", "consulting"]) if role == "Supplier" else []
+        needs = st.multiselect("Products/Services Needed", ["packaging", "labeling", "IT services", "logistics", "consulting"]) if role == "Buyer" else []
 
-    buyer = {
-        "needs": st.multiselect("What do you need?", ["packaging", "IT services", "logistics", "labeling", "consulting"]),
-        "sectors": st.multiselect("Your sectors", ["Agriculture", "Textiles", "ICT", "Manufacturing", "Retail"]),
-        "targets": st.multiselect("Target countries", ["Germany", "France", "USA", "UK", "Netherlands"]),
-        "certs": st.multiselect("Certifications", ["ISO 9001", "GOTS", "CE", "Fair Trade", "Organic"]),
-        "size": st.selectbox("Company size", ["micro", "small", "medium", "large"]),
-        "needs_exporter": st.checkbox("Looking for exporters?", value=True),
-        "partner_types": st.multiselect("Preferred partnership types", ["buyer-supplier", "JV", "reseller", "franchise"]),
-        "country": "Kosovo"
-    }
+        certs = st.multiselect("Certifications", ["ISO 9001", "GOTS", "CE", "Fair Trade", "Organic"])
+        export_ready = st.checkbox("Export Ready?", value=True)
+        needs_exporter = st.checkbox("Looking for Exporter?", value=True) if role == "Buyer" else False
+        partner_types = st.multiselect("Preferred Partnership Types", ["buyer-supplier", "JV", "reseller", "franchise"])
+        targets = st.multiselect("Target Countries", ["Germany", "France", "USA", "UK", "Netherlands"]) if role == "Buyer" else []
 
-with col2:
-    st.subheader("🟢 Supplier Profile")
+        submitted = st.form_submit_button("✅ Register Company")
 
-    supplier = {
-        "offers": st.multiselect("What do you offer?", ["packaging", "labeling", "IT services", "logistics", "consulting"]),
-        "sectors": st.multiselect("Your sectors", ["Agriculture", "Textiles", "ICT", "Manufacturing", "Retail"], key="supplier_sectors"),
-        "certs": st.multiselect("Certifications", ["ISO 9001", "GOTS", "CE", "Fair Trade", "Organic"], key="supplier_certs"),
-        "size": st.selectbox("Company size", ["micro", "small", "medium", "large"], key="supplier_size"),
-        "export_ready": st.checkbox("Are you export-ready?", value=True),
-        "partner_types": st.multiselect("Available for partnerships", ["buyer-supplier", "JV", "reseller", "franchise"], key="supplier_partner_types"),
-        "country": st.selectbox("Country of operation", ["Germany", "France", "USA", "UK", "Netherlands"])
-    }
+        if submitted:
+            company = {
+                "id": str(uuid.uuid4()),
+                "name": name,
+                "role": role,
+                "country": country,
+                "size": size,
+                "sectors": sectors,
+                "offers": offers,
+                "needs": needs,
+                "certs": certs,
+                "export_ready": export_ready,
+                "needs_exporter": needs_exporter,
+                "partner_types": partner_types,
+                "targets": targets
+            }
+            st.session_state.companies.append(company)
+            st.success("Company registered successfully!")
 
-st.markdown("---")
+# ----------------------------
+# PAGE 2: Matchmaking Dashboard
+# ----------------------------
+elif page == "Find Matches":
+    st.title("🔍 AI-Powered Matchmaking")
 
-if st.button("🔍 Match Now"):
-    score, explanation = compute_match_score(buyer, supplier)
-    st.success(f"Match Score: **{score}%**")
+    buyers = [c for c in st.session_state.companies if c['role'] == 'Buyer']
+    suppliers = [c for c in st.session_state.companies if c['role'] == 'Supplier']
 
-    st.markdown("### 🤔 Why this match?")
-    for reason in explanation:
-        st.markdown(f"✅ {reason}")
+    if not buyers or not suppliers:
+        st.warning("Please register at least one buyer and one supplier.")
+    else:
+        buyer = st.selectbox("Select Buyer", buyers, format_func=lambda x: x['name'])
+        st.markdown("---")
+
+        st.subheader(f"🔗 Top Matches for **{buyer['name']}**")
+        top_matches = []
+        for supplier in suppliers:
+            score, reasons = compute_match_score(buyer, supplier)
+            top_matches.append((supplier, score, reasons))
+
+        top_matches = sorted(top_matches, key=lambda x: -x[1])[:5]
+
+        for supplier, score, reasons in top_matches:
+            with st.expander(f"✅ {supplier['name']} — Match Score: {score}%"):
+                st.write("**Country:**", supplier['country'])
+                st.write("**Sectors:**", ", ".join(supplier['sectors']))
+                st.write("**Offers:**", ", ".join(supplier['offers']))
+                st.write("**Certifications:**", ", ".join(supplier['certs']))
+                st.write("**Why matched:**")
+                for r in reasons:
+                    st.markdown(f"- {r}")
+
 
